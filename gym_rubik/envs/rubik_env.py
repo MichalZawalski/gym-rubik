@@ -17,13 +17,14 @@ class DebugLevel(Enum):
 class RubikEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self):
+    def __init__(self, step_limit, shuffles=50):
         self.cube = Cube(3, whiteplastic=False)
         self.action_space = spaces.Discrete(len(ACTION_LOOKUP))
-        self.status = self.cube.score()
-        self.scoreAfterLastReward = self.status
-        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3), dtype=np.int32)
         self.fig = None
+        self.solved_state = self.cube.get_state()
+        
+        self.observation_space = None
+        self.create_observation_space()
 
         self.scramble = []
 
@@ -31,22 +32,20 @@ class RubikEnv(gym.Env):
         self.renderViews = True
         self.renderFlat = True
         self.renderCube = False
-        self.scrambleSize = 1
+        self.scrambleSize = shuffles
+        
+        self.num_steps = 0
+        self.step_limit = step_limit
 
         self.config()
 
-    def config(self, debug_level=DebugLevel.WARNING, render_cube=False, scramble_size=1, render_views=True,
-               render_flat=True):
-        self.debugLevel = debug_level
-        self.renderCube = render_cube
-        self.scrambleSize = scramble_size
-
-        self.renderViews = render_views
-        self.renderFlat = render_flat
-
+    def config(self):
         if self.renderCube:
             plt.ion()
             plt.show()
+    
+    def create_observation_space(self):
+        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 6), dtype=np.int32)
 
     def step(self, action):
         """
@@ -78,18 +77,17 @@ class RubikEnv(gym.Env):
                  use this for learning.
         """
         self._take_action(action)
-        self.status = self.cube.score()
-        reward = self._get_reward()
-        if self.debugLevel == DebugLevel.VERBOSE:
-            print("status = {0} ; score after last reward = {1} ; reward = {2}"
-                  .format(str(self.status),
-                          str(self.scoreAfterLastReward),
-                          str(reward)))
+        reward = -1
+        self.num_steps += 1
+
         observation = self._get_state()
-        episode_over = self.cube.solved(self.status)
-        if episode_over:
-            if self.debugLevel == DebugLevel.INFO:
-                print("S-O-L-V-E-D !!!")
+        solved = np.array_equal(self.cube.get_state(), self.solved_state)
+
+        if solved:
+            reward = 0
+        
+        episode_over = solved or (self.num_steps == self.step_limit)
+        
         return observation, reward, episode_over, {}
 
     def reset(self):
@@ -99,8 +97,8 @@ class RubikEnv(gym.Env):
             if self.debugLevel == DebugLevel.INFO:
                 print("scramble " + str(self.scrambleSize) + " moves")
             self.randomize(self.scrambleSize)
-        self.status = self.cube.score()
-        self.scoreAfterLastReward = self.status
+
+        self.num_steps = 0
         return self._get_state()
 
     def render(self, mode='human', close=False):
@@ -138,15 +136,10 @@ class RubikEnv(gym.Env):
                 self.cube.move_by_action(action)
                 t += 1
 
-    def _get_reward(self):
-        reward = self.status - self.scoreAfterLastReward
-        if reward > 0:
-            self.scoreAfterLastReward = self.status
-            return reward - 1
-        return -1
-
     def _get_state(self):
-        return self.cube.get_state()
+        raw_state = self.cube.get_state()
+        state = (np.arange(6) == raw_state[..., np.newaxis]).astype(int)
+        return state
 
 
 ACTION_LOOKUP = {
@@ -163,3 +156,35 @@ ACTION_LOOKUP = {
     10: Actions.L,
     11: Actions.L_1
 }
+
+class GoalRubikEnv(RubikEnv):
+    def __init__(self, step_limit, shuffles=50):
+        super(GoalRubikEnv, self).__init__(step_limit, shuffles)
+        self.goal_obs = self._get_state()
+
+    def create_observation_space(self):
+        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 12), dtype=np.int32)
+        
+    def step(self, action):
+        obs, reward, done, info = super(GoalRubikEnv, self).step(action)
+
+        obs = self._get_goal_observation(obs)
+        reward = self._calculate_reward(obs['observation'], obs['achieved_goal'], obs['desired_goal'])
+        
+        return obs, reward, done, info
+        
+    def reset(self):
+        obs = super(GoalRubikEnv, self).reset()
+        print(obs.flatten())
+        # print(self._get_goal_observation(obs))
+        return self._get_goal_observation(obs)
+    
+    def _get_goal_observation(self, obs):
+        return self._convert_observation(obs, obs, self.goal_obs)
+    
+    def _convert_observation(self, obs, state, goal):
+        # print(obs.shape, state.shape, goal.shape)
+        return {'observation':obs, 'achieved_goal':state, 'desired_goal':goal}
+
+    def _calculate_reward(self, obs, state, goal):
+        return 0 if np.array_equal(state, goal) else -1
