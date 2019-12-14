@@ -1,4 +1,5 @@
 from enum import Enum
+import time
 
 import gym
 import matplotlib.pyplot as plt
@@ -17,7 +18,7 @@ class DebugLevel(Enum):
 class RubikEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, step_limit, shuffles=50):
+    def __init__(self, step_limit=100, shuffles=50):
         self.cube = Cube(3, whiteplastic=False)
         self.action_space = spaces.Discrete(len(ACTION_LOOKUP))
         self.fig = None
@@ -39,7 +40,16 @@ class RubikEnv(gym.Env):
 
         self.config()
 
-    def config(self):
+    def config(self, debug_level=DebugLevel.WARNING, render_cube=False, scramble_size=None, render_views=True,
+               render_flat=True):
+        self.debugLevel = debug_level
+        self.renderCube = render_cube
+        if scramble_size is not None:
+            self.scrambleSize = scramble_size
+
+        self.renderViews = render_views
+        self.renderFlat = render_flat
+
         if self.renderCube:
             plt.ion()
             plt.show()
@@ -103,6 +113,8 @@ class RubikEnv(gym.Env):
 
     def render(self, mode='human', close=False):
         if self.renderCube:
+            if self.fig:
+                plt.clf()
             self.fig = self.cube.render(self.fig, views=self.renderViews, flat=self.renderFlat)
             plt.pause(0.001)
 
@@ -170,12 +182,12 @@ class GoalRubikEnv(RubikEnv):
 
         obs = self._get_goal_observation(obs)
         reward = self._calculate_reward(obs['observation'], obs['achieved_goal'], obs['desired_goal'])
-        
+
         return obs, reward, done, info
         
     def reset(self):
         obs = super(GoalRubikEnv, self).reset()
-        print(obs.flatten())
+        # print(obs.flatten())
         # print(self._get_goal_observation(obs))
         return self._get_goal_observation(obs)
     
