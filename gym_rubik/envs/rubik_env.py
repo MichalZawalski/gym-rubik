@@ -1,6 +1,7 @@
 from enum import Enum
 import time
 
+import gin
 import gym
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,6 +16,7 @@ class DebugLevel(Enum):
     VERBOSE = 2
 
 
+@gin.configurable
 class RubikEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
@@ -55,7 +57,7 @@ class RubikEnv(gym.Env):
             plt.show()
     
     def create_observation_space(self):
-        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 6), dtype=np.int32)
+        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 6), dtype=np.float32)
 
     def step(self, action):
         """
@@ -169,13 +171,15 @@ ACTION_LOOKUP = {
     11: Actions.L_1
 }
 
+
+@gin.configurable
 class GoalRubikEnv(RubikEnv):
-    def __init__(self, step_limit, shuffles=50):
+    def __init__(self, step_limit=100, shuffles=50):
         super(GoalRubikEnv, self).__init__(step_limit, shuffles)
         self.goal_obs = self._get_state()
 
     def create_observation_space(self):
-        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 12), dtype=np.int32)
+        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 12), dtype=np.float32)
         
     def step(self, action):
         obs, reward, done, info = super(GoalRubikEnv, self).step(action)
