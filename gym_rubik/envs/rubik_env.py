@@ -43,11 +43,13 @@ class RubikEnv(gym.Env):
         self.config()
 
     def config(self, debug_level=DebugLevel.WARNING, render_cube=False, scramble_size=None, render_views=True,
-               render_flat=True):
+               render_flat=True, step_limit=None):
         self.debugLevel = debug_level
         self.renderCube = render_cube
         if scramble_size is not None:
             self.scrambleSize = scramble_size
+        if step_limit is not None:
+            self.step_limit = step_limit
 
         self.renderViews = render_views
         self.renderFlat = render_flat
@@ -57,7 +59,7 @@ class RubikEnv(gym.Env):
             plt.show()
     
     def create_observation_space(self):
-        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 6), dtype=np.float32)
+        self.observation_space = spaces.Box(low=0, high=1, shape=(6, 3, 3, 6), dtype=np.float32)
 
     def step(self, action):
         """
@@ -103,6 +105,7 @@ class RubikEnv(gym.Env):
         return observation, reward, episode_over, {}
 
     def reset(self):
+        # print(self.scrambleSize)
         self.cube = Cube(3, whiteplastic=False)
         self.scramble = []
         if self.scrambleSize > 0:
@@ -179,8 +182,8 @@ class GoalRubikEnv(RubikEnv):
         self.goal_obs = self._get_state()
 
     def create_observation_space(self):
-        self.observation_space = spaces.Box(low=0, high=5, shape=(6, 3, 3, 12), dtype=np.float32)
-        
+        self.observation_space = spaces.Box(low=0, high=1, shape=(6, 3, 3, 12), dtype=np.float32)
+
     def step(self, action):
         obs, reward, done, info = super(GoalRubikEnv, self).step(action)
 
@@ -188,19 +191,22 @@ class GoalRubikEnv(RubikEnv):
         reward = self._calculate_reward(obs['observation'], obs['achieved_goal'], obs['desired_goal'])
 
         return obs, reward, done, info
-        
+
     def reset(self):
         obs = super(GoalRubikEnv, self).reset()
         # print(obs.flatten())
         # print(self._get_goal_observation(obs))
         return self._get_goal_observation(obs)
-    
+
     def _get_goal_observation(self, obs):
         return self._convert_observation(obs, obs, self.goal_obs)
-    
+
     def _convert_observation(self, obs, state, goal):
         # print(obs.shape, state.shape, goal.shape)
-        return {'observation':obs, 'achieved_goal':state, 'desired_goal':goal}
+        return {'observation': obs, 'achieved_goal': state, 'desired_goal': goal}
 
     def _calculate_reward(self, obs, state, goal):
         return 0 if np.array_equal(state, goal) else -1
+
+    def set_goal(self, goal_obs):
+        self.goal_obs = goal_obs
