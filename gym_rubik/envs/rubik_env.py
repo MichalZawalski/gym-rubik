@@ -8,6 +8,7 @@ import numpy as np
 from gym import spaces
 
 from gym_rubik.envs.cube import Actions, Cube
+from gym_rubik.envs.converter import CubeConverter
 
 
 class DebugLevel(Enum):
@@ -20,13 +21,15 @@ class DebugLevel(Enum):
 class RubikEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
-    def __init__(self, step_limit=100, shuffles=50):
+    def __init__(self, step_limit=100, shuffles=50, obs_type='basic'):
         self.cube = Cube(3, whiteplastic=False)
         self.action_space = spaces.Discrete(len(ACTION_LOOKUP))
         self.fig = None
         self.solved_state = self.cube.get_state()
         
         self.observation_space = None
+        self.obs_type = obs_type
+        self.converter = None
         self.create_observation_space()
 
         self.scramble = []
@@ -59,7 +62,11 @@ class RubikEnv(gym.Env):
             plt.show()
     
     def create_observation_space(self):
-        self.observation_space = spaces.Box(low=0, high=1, shape=(6, 3, 3, 6), dtype=np.float32)
+        if self.obs_type == 'basic':
+            self.observation_space = spaces.Box(low=0, high=1, shape=(6, 3, 3, 6), dtype=np.float32)
+        else:
+            self.observation_space = spaces.Box(low=0, high=1, shape=(20, 24), dtype=np.float32)
+            self.converter = CubeConverter(goal_observations=False)
 
     def step(self, action):
         """
@@ -155,7 +162,10 @@ class RubikEnv(gym.Env):
 
     def _get_state(self):
         raw_state = self.cube.get_state()
-        state = (np.arange(6) == raw_state[..., np.newaxis]).astype(int)
+        if self.obs_type == 'basic':
+            state = (np.arange(6) == raw_state[..., np.newaxis]).astype(int)
+        else:
+            state = self.converter.convert_basic_to_reduced(raw_state)
         return state
 
 
@@ -177,12 +187,16 @@ ACTION_LOOKUP = {
 
 @gin.configurable
 class GoalRubikEnv(RubikEnv):
-    def __init__(self, step_limit=100, shuffles=50):
-        super(GoalRubikEnv, self).__init__(step_limit, shuffles)
+    def __init__(self, step_limit=100, shuffles=50, obs_type='basic'):
+        super(GoalRubikEnv, self).__init__(step_limit, shuffles, obs_type)
         self.goal_obs = self._get_state()
 
     def create_observation_space(self):
-        self.observation_space = spaces.Box(low=0, high=1, shape=(6, 3, 3, 12), dtype=np.float32)
+        if self.obs_type == 'basic':
+            self.observation_space = spaces.Box(low=0, high=1, shape=(6, 3, 3, 12), dtype=np.float32)
+        else:
+            self.observation_space = spaces.Box(low=0, high=1, shape=(20, 48), dtype=np.float32)
+            self.converter = CubeConverter()
 
     def step(self, action):
         obs, reward, done, info = super(GoalRubikEnv, self).step(action)
