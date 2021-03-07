@@ -66,7 +66,7 @@ class RubikEnv(gym.Env):
             self.observation_space = spaces.Box(low=0, high=1, shape=(6, 3, 3, 6), dtype=np.float32)
         else:
             self.observation_space = spaces.Box(low=0, high=1, shape=(20, 24), dtype=np.float32)
-            self.converter = CubeConverter(goal_observations=False)
+            self.converter = CubeConverter()
 
     def step(self, action):
         """
