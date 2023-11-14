@@ -1,6 +1,6 @@
 from gym.envs.registration import register
 
-from envs.rubik_env import RubikEnv, GoalRubikEnv
+from gym_rubik.envs.rubik_env import RubikEnv, GoalRubikEnv
 
 register(
     id='RubikEnv-v0',
